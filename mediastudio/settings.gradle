@@ -1,1 +1,22 @@
-include ':app', ':app_ffmpeg', ':app_imagemagic', ':app_opengles'
+//include ':app', ':app_ffmpeg', ':app_imagemagic', ':app_opengles'
+include("app")
+rootProject.name='mediastudio'
+if(isImportFfmpeg.toBoolean())
+{
+    include(':app_ffmpeg')
+    project(':app_ffmpeg').projectDir = new File('app_ffmpeg')
+}
+
+
+if(isImportImageMagic.toBoolean())
+{
+    include(':app_imagemagic')
+    project(':app_imagemagic').projectDir = new File('app_imagemagic')
+}
+
+if(isImportopengles.toBoolean())
+{
+    include(':app_opengles')
+    project(':app_opengles').projectDir = new File('app_opengles')
+}
+
