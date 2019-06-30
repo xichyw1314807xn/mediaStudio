@@ -1,68 +1,162 @@
 package com.onion.mediastudio;
 
-import android.os.Bundle;
-import android.widget.TextView;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.graphics.ImageFormat;
+import android.graphics.SurfaceTexture;
+import android.hardware.Camera;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.os.Bundle;
+import android.util.Log;
+import android.util.Size;
+import android.view.Surface;
+import android.view.TextureView;
+import java.io.IOException;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Used to load the 'native-lib' library on application startup.
-    static {
-        System.loadLibrary("native-lib");
+    private final static String TAG = "VideoIO";
+    private final static String MIME_FORMAT = "video/avc"; //support h.264
+
+    private TextureView mCameraTexture;
+    private TextureView mDecodeTexture;
+
+    private VideoDecoder mVideoDecoder;
+    private VideoEncoder mVideoEncoder;
+
+    private Camera mCamera;
+    private int mPreviewWidth;
+    private int mPreviewHeight;
+
+    private Camera.PreviewCallback mPreviewCallBack = new Camera.PreviewCallback() {
+        @Override
+        public void onPreviewFrame(byte[] bytes, Camera camera) {
+            byte[] i420bytes = new byte[bytes.length];
+            //from YV20 to i420
+            System.arraycopy(bytes, 0, i420bytes, 0, mPreviewWidth * mPreviewHeight);
+            System.arraycopy(bytes, mPreviewWidth * mPreviewHeight + mPreviewWidth * mPreviewHeight / 4, i420bytes, mPreviewWidth * mPreviewHeight, mPreviewWidth * mPreviewHeight / 4);
+            System.arraycopy(bytes, mPreviewWidth * mPreviewHeight, i420bytes, mPreviewWidth * mPreviewHeight + mPreviewWidth * mPreviewHeight / 4, mPreviewWidth * mPreviewHeight / 4);
+            if(mVideoEncoder != null) {
+                mVideoEncoder.inputFrameToEncoder(i420bytes);
+            }
+        }
+    };
+
+    private TextureView.SurfaceTextureListener mCameraTextureListener = new TextureView.SurfaceTextureListener() {
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
+            openCamera(surfaceTexture,i, i1);
+            mVideoEncoder = new VideoEncoder(MIME_FORMAT, mPreviewWidth, mPreviewHeight);
+            mVideoEncoder.startEncoder();
+        }
+
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int i, int i1) {
+        }
+
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+            if(mVideoEncoder != null){
+                mVideoEncoder.release();
+            }
+            closeCamera();
+            return true;
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
+        }
+    };
+
+    private TextureView.SurfaceTextureListener mDecodeTextureListener = new TextureView.SurfaceTextureListener() {
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
+            System.out.println("----------" + i + " ," + i1);
+            mVideoDecoder = new VideoDecoder(MIME_FORMAT, new Surface(surfaceTexture), mPreviewWidth, mPreviewHeight);
+            mVideoDecoder.setEncoder(mVideoEncoder);
+            mVideoDecoder.startDecoder();
+        }
+
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int i, int i1) {
+        }
+
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+            mVideoDecoder.stopDecoder();
+            mVideoDecoder.release();
+            return true;
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
+        }
+    };
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        initView();
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-
-        // Example of a call to a native method
-        TextView tv = (TextView) findViewById(R.id.sample_text);
-        tv.setText(stringFromJNI());
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            Log.i("TEST","Granted");
+            initView();
+        } else {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);//1 can be another integer
+        }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
+    private void initView(){
+        mCameraTexture = (TextureView)findViewById(R.id.camera);
+        mDecodeTexture = (TextureView)findViewById(R.id.decode);
+        mCameraTexture.setSurfaceTextureListener(mCameraTextureListener);
+        mDecodeTexture.setSurfaceTextureListener(mDecodeTextureListener);
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+    private void openCamera(SurfaceTexture texture,int width, int height){
+        if(texture == null){
+            Log.e(TAG, "openCamera need SurfaceTexture");
+            return;
         }
 
-        return super.onOptionsItemSelected(item);
+        mCamera = Camera.open(0);
+        try{
+            mCamera.setPreviewTexture(texture);
+            Camera.Parameters parameters = mCamera.getParameters();
+            parameters.setPreviewFormat(ImageFormat.YV12);
+            List<Camera.Size> list = parameters.getSupportedPreviewSizes();
+            for(Camera.Size size: list){
+                System.out.println("----size width = " + size.width + " size height = " + size.height);
+            }
+
+            mPreviewWidth = 640;
+            mPreviewHeight = 480;
+            parameters.setPreviewSize(mPreviewWidth,mPreviewHeight);
+            mCamera.setParameters(parameters);
+            mCamera.setPreviewCallback(mPreviewCallBack);
+            mCamera.startPreview();
+        }catch(IOException e){
+            Log.e(TAG, Log.getStackTraceString(e));
+            mCamera = null;
+        }
     }
 
-    /**
-     * A native method that is implemented by the 'native-lib' native library,
-     * which is packaged with this application.
-     */
-    public native String stringFromJNI();
+    private void closeCamera(){
+        if(mCamera == null){
+            Log.e(TAG, "Camera not open");
+            return;
+        }
+        mCamera.stopPreview();
+        mCamera.release();
+    }
 }
