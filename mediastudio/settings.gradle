@@ -1,3 +1,4 @@
+include ':libspeex'
 //include ':app', ':app_ffmpeg', ':app_imagemagic', ':app_opengles'
 include("app")
 rootProject.name='mediastudio'

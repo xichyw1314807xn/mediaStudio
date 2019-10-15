@@ -9,8 +9,10 @@
           <set>
             <option value="$PROJECT_DIR$/../app_ffmpeg" />
             <option value="$PROJECT_DIR$/../app_imagemagic" />
+            <option value="$PROJECT_DIR$/../app_opengles" />
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/libspeex" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />

@@ -87,8 +87,11 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
-            mVideoDecoder.stopDecoder();
-            mVideoDecoder.release();
+            if(mVideoDecoder != null)
+            {
+                mVideoDecoder.stopDecoder();
+                mVideoDecoder.release();
+            }
             return true;
         }
 
@@ -144,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
             parameters.setPreviewSize(mPreviewWidth,mPreviewHeight);
             mCamera.setParameters(parameters);
             mCamera.setPreviewCallback(mPreviewCallBack);
+            mCamera.setDisplayOrientation(90);
             mCamera.startPreview();
         }catch(IOException e){
             Log.e(TAG, Log.getStackTraceString(e));
