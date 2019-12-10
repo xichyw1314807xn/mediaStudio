@@ -8,9 +8,12 @@ import android.support.v7.widget.Toolbar;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
 
+    private TextView tv_info;
+    private FfmpegHelp ffmpegHelp = new FfmpegHelp();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -26,6 +29,8 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
+        tv_info = findViewById(R.id.tv_info);
+        tv_info.setText(ffmpegHelp.configurationinfo());
     }
 
     @Override
@@ -49,4 +54,23 @@ public class MainActivity extends AppCompatActivity {
 
         return super.onOptionsItemSelected(item);
     }
+    //JNI
+    public native String urlprotocolinfo();
+    public native String avformatinfo();
+    public native String avcodecinfo();
+    public native String avfilterinfo();
+    public native String configurationinfo();
+
+    static{
+        System.loadLibrary("avutil-56");
+        System.loadLibrary("swresample-3");
+        System.loadLibrary("avcodec-58");
+        System.loadLibrary("avformat-58");
+        System.loadLibrary("swscale-5");
+//        System.loadLibrary("postproc-53");
+        System.loadLibrary("avfilter-7");
+        System.loadLibrary("avdevice-58");
+        System.loadLibrary("hello-jni");
+    }
+
 }
